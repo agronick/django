@@ -8,6 +8,7 @@ from io import BytesIO
 from django.conf import settings
 from django.core.files.uploadedfile import InMemoryUploadedFile, TemporaryUploadedFile
 from django.utils.module_loading import import_string
+from django.core.exceptions import RequestDataTooBig
 
 __all__ = [
     "UploadFileException",
@@ -173,6 +174,11 @@ class TemporaryFileUploadHandler(FileUploadHandler):
         )
 
     def receive_data_chunk(self, raw_data, start):
+        if settings.DATA_UPLOAD_MAX_MEMORY_SIZE and start > settings.DATA_UPLOAD_MAX_MEMORY_SIZE:
+            raise RequestDataTooBig(
+                "Request body exceeded "
+                "settings.DATA_UPLOAD_MAX_MEMORY_SIZE."
+            )
         self.file.write(raw_data)
 
     def file_complete(self, file_size):
@@ -204,7 +210,7 @@ class MemoryFileUploadHandler(FileUploadHandler):
         """
         # Check the content-length header to see if we should
         # If the post is too large, we cannot use the Memory handler.
-        self.activated = content_length <= settings.FILE_UPLOAD_MAX_MEMORY_SIZE
+        self.activated = content_length and content_length <= settings.FILE_UPLOAD_MAX_MEMORY_SIZE
 
     def new_file(self, *args, **kwargs):
         super().new_file(*args, **kwargs)
